@@ -9,6 +9,8 @@ const statusConfig = {
   'withdrawal_requested':{ label: 'Withdrawal Requested',color: 'bg-amber-500/15 text-amber-400 border-amber-500/20' },
   'closed':              { label: 'Closed',              color: 'bg-white/5 text-white/40 border-white/10' },
   'pending':             { label: 'Pending',             color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20' },
+  'paid':               { label: 'Paid',               color: 'bg-green-500/15 text-green-400 border-green-500/20' },
+  'open':               { label: 'Open',               color: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
 }
 
 export default function Badge({ status, className = '' }) {

@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { TrendingUp, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
+import { TrendingUp, Eye, EyeOff, AlertCircle, CheckCircle, UserPlus } from 'lucide-react'
 import GlassCard from '../../components/ui/GlassCard'
 
 export default function Register() {
-  const [form, setForm] = useState({ displayName: '', email: '', phone: '', password: '', confirmPassword: '' })
+  const [searchParams] = useSearchParams()
+  const [form, setForm] = useState({
+    displayName: '', email: '', phone: '', password: '', confirmPassword: '',
+    referralCode: searchParams.get('ref') || '',
+  })
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -25,7 +29,7 @@ export default function Register() {
     setLoading(true)
     setError('')
     try {
-      await register(form.email, form.password, form.displayName, form.phone)
+      await register(form.email, form.password, form.displayName, form.phone, form.referralCode)
       setSuccess(true)
       setTimeout(() => navigate('/dashboard'), 2000)
     } catch (err) {
@@ -98,6 +102,19 @@ export default function Register() {
                 <label className="text-white/50 text-xs mb-1.5 block" htmlFor="phone">Phone Number</label>
                 <input id="phone" name="phone" type="tel" value={form.phone}
                   onChange={handleChange} placeholder="+1 234 567 890" className="input-field" />
+              </div>
+              <div>
+                <label className="text-white/50 text-xs mb-1.5 block" htmlFor="referralCode">
+                  Referral Code <span className="text-white/25">(optional)</span>
+                </label>
+                <div className="relative">
+                  <input id="referralCode" name="referralCode" type="text" value={form.referralCode}
+                    onChange={handleChange} placeholder="Enter referral code if you have one"
+                    className="input-field uppercase" />
+                  {form.referralCode && (
+                    <UserPlus size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-mea-red" />
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-white/50 text-xs mb-1.5 block" htmlFor="password">Password</label>

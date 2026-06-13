@@ -7,7 +7,7 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from '../firebase/config'
 
 const AuthContext = createContext(null)
@@ -21,23 +21,35 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  async function register(email, password, displayName, phone = '') {
+  async function register(email, password, displayName, phone = '', referrerCode = '') {
     const result = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(result.user, { displayName })
+    const uid = result.user.uid
+    const referralCode = uid.slice(0, 8).toUpperCase()
+
+    let referredBy = null
+    if (referrerCode) {
+      try {
+        const q = query(collection(db, 'users'), where('referralCode', '==', referrerCode.toUpperCase().trim()))
+        const snap = await getDocs(q)
+        if (!snap.empty) referredBy = snap.docs[0].data().uid
+      } catch { /* ignore — referral lookup failure doesn't block registration */ }
+    }
+
     try {
-      await setDoc(doc(db, 'users', result.user.uid), {
-        uid: result.user.uid,
+      await setDoc(doc(db, 'users', uid), {
+        uid,
         email,
         displayName,
         phone,
         role: 'user',
         status: 'pending',
+        referralCode,
+        referredBy,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
     } catch (firestoreErr) {
-      // Auth succeeded — Firestore profile save failed (rules/not created yet)
-      // Don't block registration, profile will be created on next login
       console.warn('Firestore profile save failed:', firestoreErr.message)
     }
     return result

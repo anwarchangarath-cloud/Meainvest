@@ -4,6 +4,7 @@ import {
   collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc
 } from 'firebase/firestore'
 import { useAuth } from '../../contexts/AuthContext'
+import { useCurrency } from '../../contexts/CurrencyContext'
 import { db } from '../../firebase/config'
 import { uploadToR2 } from '../../utils/upload'
 import GlassCard from '../../components/ui/GlassCard'
@@ -12,7 +13,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import {
   LayoutDashboard, TrendingUp, DollarSign, FileText, LogOut,
   Upload, Bell, User, ChevronRight, AlertCircle, CheckCircle,
-  Clock, Download, MessageSquare, X, Menu, Building2
+  Clock, Download, MessageSquare, X, Menu, Building2, UserPlus, Copy
 } from 'lucide-react'
 
 const MENU = [
@@ -22,6 +23,7 @@ const MENU = [
   { id: 'upload', icon: Upload, label: 'Upload Receipt' },
   { id: 'statements', icon: FileText, label: 'Statements' },
   { id: 'withdraw', icon: Download, label: 'Withdrawal' },
+  { id: 'referrals', icon: UserPlus, label: 'Referrals' },
   { id: 'notifications', icon: Bell, label: 'Notifications' },
   { id: 'profile', icon: User, label: 'My Profile' },
   { id: 'support', icon: MessageSquare, label: 'Support' },
@@ -36,6 +38,7 @@ export default function UserDashboard() {
   const [plans, setPlans] = useState([])
   const [notifications, setNotifications] = useState([])
   const [bankAccounts, setBankAccounts] = useState([])
+  const [commissions, setCommissions] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -56,6 +59,10 @@ export default function UserDashboard() {
     unsubs.push(onSnapshot(collection(db, 'bankAccounts'), (snap) => {
       setBankAccounts(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((a) => a.active))
     }))
+    unsubs.push(onSnapshot(
+      query(collection(db, 'commissions'), where('referrerId', '==', currentUser.uid)),
+      (snap) => setCommissions(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    ))
 
     setLoading(false)
     return () => unsubs.forEach((u) => u())
@@ -175,6 +182,7 @@ export default function UserDashboard() {
           {page === 'upload' && <UploadReceiptPage investments={investments} userId={currentUser?.uid} />}
           {page === 'statements' && <StatementsPage userId={currentUser?.uid} />}
           {page === 'withdraw' && <WithdrawalPage investments={investments} userId={currentUser?.uid} />}
+          {page === 'referrals' && <ReferralsPage commissions={commissions} userProfile={userProfile} />}
           {page === 'notifications' && <NotificationsPage notifications={notifications} />}
           {page === 'profile' && <ProfilePage userProfile={userProfile} currentUser={currentUser} />}
           {page === 'support' && <SupportPage userId={currentUser?.uid} />}
@@ -187,13 +195,14 @@ export default function UserDashboard() {
 /* ── Overview ── */
 function OverviewPage({ stats, setPage }) {
   const { activeInvestments, totalInvested, totalReturn, investments, unreadNotifs } = stats
+  const { fmt } = useCurrency()
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Invested', value: `$${totalInvested.toLocaleString()}`, icon: DollarSign, color: 'text-blue-400' },
+          { label: 'Total Invested', value: fmt(totalInvested), icon: DollarSign, color: 'text-blue-400' },
           { label: 'Active Investments', value: activeInvestments.length, icon: TrendingUp, color: 'text-green-400' },
-          { label: 'Projected Returns', value: `$${totalReturn.toLocaleString()}`, icon: ChevronRight, color: 'text-mea-red' },
+          { label: 'Projected Returns', value: fmt(totalReturn), icon: ChevronRight, color: 'text-mea-red' },
           { label: 'Notifications', value: unreadNotifs, icon: Bell, color: 'text-yellow-400' },
         ].map(({ label, value, icon: Icon, color }) => (
           <GlassCard key={label} className="p-5">
@@ -221,7 +230,7 @@ function OverviewPage({ stats, setPage }) {
               <div key={inv.id} className="flex items-center justify-between p-3.5 rounded-xl bg-white/3 border border-white/5">
                 <div>
                   <div className="text-white text-sm font-medium">{inv.planName || 'Investment'}</div>
-                  <div className="text-white/30 text-xs">${(inv.amount || 0).toLocaleString()}</div>
+                  <div className="text-white/30 text-xs">{fmt(inv.amount || 0)}</div>
                 </div>
                 <Badge status={inv.status} />
               </div>
@@ -235,6 +244,7 @@ function OverviewPage({ stats, setPage }) {
 
 /* ── New Investment ── */
 function NewInvestmentPage({ plans, bankAccounts, userId }) {
+  const { fmt } = useCurrency()
   const [step, setStep] = useState(1)
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [amount, setAmount] = useState('')
@@ -245,7 +255,7 @@ function NewInvestmentPage({ plans, bankAccounts, userId }) {
   async function submitRequest() {
     if (!selectedPlan || !amount) return setError('Please select a plan and enter an amount.')
     const amt = parseFloat(amount)
-    if (amt < (selectedPlan.minAmount || 0)) return setError(`Minimum investment is $${selectedPlan.minAmount?.toLocaleString()}.`)
+    if (amt < (selectedPlan.minAmount || 0)) return setError(`Minimum investment is ${fmt(selectedPlan.minAmount)}.`)
     setLoading(true)
     try {
       await addDoc(collection(db, 'investments'), {
@@ -323,7 +333,7 @@ function NewInvestmentPage({ plans, bankAccounts, userId }) {
                   }`}>
                   <div className="font-semibold text-white mb-1">{plan.name}</div>
                   <div className="text-mea-red font-bold text-lg mb-2">{plan.returnRate}%</div>
-                  <div className="text-white/40 text-xs">{plan.type} · Min ${plan.minAmount?.toLocaleString()} · {plan.duration}</div>
+                  <div className="text-white/40 text-xs">{plan.type} · Min {fmt(plan.minAmount)} · {plan.duration}</div>
                 </button>
               ))}
             </div>
@@ -345,13 +355,13 @@ function NewInvestmentPage({ plans, bankAccounts, userId }) {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Min. $${selectedPlan.minAmount?.toLocaleString()}`}
+              placeholder={`Min. ${fmt(selectedPlan.minAmount)}`}
               className="input-field mb-2"
               min={selectedPlan.minAmount}
             />
             {amount && (
               <div className="text-white/40 text-xs">
-                Projected return: <span className="text-green-400">${(parseFloat(amount || 0) * ((selectedPlan.returnRate || 0) / 100)).toLocaleString()}</span>
+                Projected return: <span className="text-green-400">{fmt(parseFloat(amount || 0) * ((selectedPlan.returnRate || 0) / 100))}</span>
                 {' '}· Subject to investment agreement
               </div>
             )}
@@ -369,11 +379,11 @@ function NewInvestmentPage({ plans, bankAccounts, userId }) {
           <GlassCard className="p-6 space-y-4">
             {[
               ['Plan', selectedPlan.name],
-              ['Amount', `$${parseFloat(amount).toLocaleString()}`],
+              ['Amount', fmt(parseFloat(amount))],
               ['Type', selectedPlan.type],
               ['Duration', selectedPlan.duration],
               ['Projected Return Rate', `${selectedPlan.returnRate}%`],
-              ['Projected Return', `$${(parseFloat(amount) * ((selectedPlan.returnRate || 0) / 100)).toLocaleString()}`],
+              ['Projected Return', fmt(parseFloat(amount) * ((selectedPlan.returnRate || 0) / 100))],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between py-2 border-b border-white/5 text-sm">
                 <span className="text-white/40">{k}</span>
@@ -399,6 +409,7 @@ function NewInvestmentPage({ plans, bankAccounts, userId }) {
 
 /* ── Investments List ── */
 function InvestmentsPage({ investments }) {
+  const { fmt } = useCurrency()
   return (
     <div className="animate-fade-in">
       <h2 className="text-white font-semibold text-lg mb-5">My Investments</h2>
@@ -418,9 +429,9 @@ function InvestmentsPage({ investments }) {
                     <Badge status={inv.status} />
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                    <div><div className="text-white/30 text-xs">Invested</div><div className="text-white font-medium">${(inv.amount || 0).toLocaleString()}</div></div>
+                    <div><div className="text-white/30 text-xs">Invested</div><div className="text-white font-medium">{fmt(inv.amount || 0)}</div></div>
                     <div><div className="text-white/30 text-xs">Return Rate</div><div className="text-mea-red font-medium">{inv.returnRate || 0}%</div></div>
-                    <div><div className="text-white/30 text-xs">Projected Return</div><div className="text-green-400 font-medium">${(inv.projectedReturn || 0).toLocaleString()}</div></div>
+                    <div><div className="text-white/30 text-xs">Projected Return</div><div className="text-green-400 font-medium">{fmt(inv.projectedReturn || 0)}</div></div>
                     <div><div className="text-white/30 text-xs">Duration</div><div className="text-white">{inv.duration || '—'}</div></div>
                   </div>
                 </div>
@@ -435,6 +446,7 @@ function InvestmentsPage({ investments }) {
 
 /* ── Upload Receipt ── */
 function UploadReceiptPage({ investments, userId }) {
+  const { fmt } = useCurrency()
   const [selectedInv, setSelectedInv] = useState('')
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -485,7 +497,7 @@ function UploadReceiptPage({ investments, userId }) {
               <select value={selectedInv} onChange={(e) => setSelectedInv(e.target.value)} className="input-field">
                 <option value="">Choose investment...</option>
                 {pending.map((inv) => (
-                  <option key={inv.id} value={inv.id}>{inv.planName} — ${inv.amount?.toLocaleString()}</option>
+                  <option key={inv.id} value={inv.id}>{inv.planName} — {fmt(inv.amount)}</option>
                 ))}
               </select>
             </div>
@@ -556,6 +568,7 @@ function StatementsPage({ userId }) {
 
 /* ── Withdrawal ── */
 function WithdrawalPage({ investments, userId }) {
+  const { fmt } = useCurrency()
   const [selectedInv, setSelectedInv] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
@@ -603,7 +616,7 @@ function WithdrawalPage({ investments, userId }) {
               <select value={selectedInv} onChange={(e) => setSelectedInv(e.target.value)} className="input-field">
                 <option value="">Choose investment...</option>
                 {eligible.map((inv) => (
-                  <option key={inv.id} value={inv.id}>{inv.planName} — ${inv.amount?.toLocaleString()} ({inv.status})</option>
+                  <option key={inv.id} value={inv.id}>{inv.planName} — {fmt(inv.amount)} ({inv.status})</option>
                 ))}
               </select>
             </div>
@@ -684,6 +697,104 @@ function ProfilePage({ userProfile, currentUser }) {
           ))}
         </div>
       </GlassCard>
+    </div>
+  )
+}
+
+/* ── Referrals ── */
+function ReferralsPage({ commissions, userProfile }) {
+  const { fmt } = useCurrency()
+  const [copied, setCopied] = useState(false)
+
+  const referralCode = userProfile?.referralCode
+  const referralLink = referralCode ? `${window.location.origin}/register?ref=${referralCode}` : ''
+
+  const totalEarned = commissions.filter((c) => c.status === 'paid').reduce((s, c) => s + (c.commissionAmount || 0), 0)
+  const totalPending = commissions.filter((c) => c.status === 'pending').reduce((s, c) => s + (c.commissionAmount || 0), 0)
+
+  function copyLink() {
+    if (!referralLink) return
+    navigator.clipboard.writeText(referralLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <h2 className="text-white font-semibold text-lg">Referral Program</h2>
+
+      <GlassCard className="p-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-mea-red/15 border border-mea-red/20 flex items-center justify-center flex-shrink-0">
+            <UserPlus size={18} className="text-mea-red" />
+          </div>
+          <div>
+            <h3 className="text-white font-semibold">Your Referral Code</h3>
+            <p className="text-white/40 text-xs">Invite investors — earn commission on their approved investments</p>
+          </div>
+        </div>
+        {referralCode ? (
+          <>
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10 mb-3">
+              <span className="text-mea-red font-bold text-2xl tracking-[0.3em] flex-1">{referralCode}</span>
+              <button onClick={copyLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/20 text-xs font-medium transition-all cursor-pointer">
+                {copied ? <CheckCircle size={13} className="text-green-400" /> : <Copy size={13} />}
+                {copied ? 'Copied!' : 'Copy Link'}
+              </button>
+            </div>
+            <p className="text-white/20 text-xs break-all font-mono">{referralLink}</p>
+          </>
+        ) : (
+          <p className="text-white/30 text-sm">Your referral code will appear here once your account is approved.</p>
+        )}
+      </GlassCard>
+
+      <div className="grid grid-cols-2 gap-4">
+        <GlassCard className="p-5">
+          <DollarSign size={18} className="text-green-400 mb-2" />
+          <div className="text-xl font-bold text-white">{fmt(totalEarned)}</div>
+          <div className="text-white/40 text-xs mt-0.5">Commission Paid</div>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <Clock size={18} className="text-yellow-400 mb-2" />
+          <div className="text-xl font-bold text-white">{fmt(totalPending)}</div>
+          <div className="text-white/40 text-xs mt-0.5">Pending Commission</div>
+        </GlassCard>
+      </div>
+
+      <div>
+        <h3 className="text-white/50 text-sm font-medium mb-3">Commission History ({commissions.length})</h3>
+        {commissions.length === 0 ? (
+          <GlassCard className="p-10 text-center">
+            <UserPlus size={32} className="text-white/10 mx-auto mb-3" />
+            <p className="text-white/30 text-sm">No referral commissions yet.</p>
+            <p className="text-white/20 text-xs mt-1">Share your referral link and earn when they invest.</p>
+          </GlassCard>
+        ) : (
+          <div className="space-y-3">
+            {[...commissions].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).map((c) => (
+              <GlassCard key={c.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-white text-sm font-medium">{c.referredUserName || 'Investor'}</div>
+                    <div className="text-white/40 text-xs mt-0.5">
+                      Investment: {fmt(c.investmentAmount)} · Rate: {c.commissionRate}%
+                    </div>
+                    <div className="text-white/25 text-xs mt-1">{c.createdAt?.toDate?.()?.toLocaleDateString()}</div>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1.5">
+                    <div className={`text-base font-bold ${c.status === 'paid' ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {fmt(c.commissionAmount)}
+                    </div>
+                    <Badge status={c.status} />
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

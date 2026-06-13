@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCurrency } from '../../contexts/CurrencyContext'
 import {
-  collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp, query, where
+  collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp, query, where, getDocs, getDoc, setDoc
 } from 'firebase/firestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { db } from '../../firebase/config'
@@ -12,7 +12,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import {
   LayoutDashboard, Users, TrendingUp, DollarSign, FileText, Bell,
   Settings, LogOut, CheckCircle, X, Edit3, Trash2, Plus, Eye,
-  Menu, Building2, ShieldCheck, AlertCircle, Download
+  Menu, Building2, ShieldCheck, AlertCircle, Download, Gift
 } from 'lucide-react'
 
 const MENU = [
@@ -22,6 +22,7 @@ const MENU = [
   { id: 'investments', icon: DollarSign, label: 'Investments' },
   { id: 'receipts', icon: FileText, label: 'Receipts' },
   { id: 'withdrawals', icon: Download, label: 'Withdrawals' },
+  { id: 'commissions', icon: Gift, label: 'Commissions' },
   { id: 'bank', icon: Building2, label: 'Bank Accounts' },
   { id: 'notifications', icon: Bell, label: 'Notifications' },
   { id: 'content', icon: Settings, label: 'Site Content' },
@@ -38,8 +39,14 @@ export default function AdminDashboard() {
   const [receipts, setReceipts] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
   const [bankAccounts, setBankAccounts] = useState([])
+  const [commissions, setCommissions] = useState([])
+  const [referralRate, setReferralRate] = useState(5)
 
   useEffect(() => {
+    getDoc(doc(db, 'settings', 'referral')).then((snap) => {
+      if (snap.exists()) setReferralRate(snap.data().commissionRate ?? 5)
+    }).catch(() => {})
+
     const unsubs = [
       onSnapshot(collection(db, 'users'), (s) => setUsers(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
       onSnapshot(collection(db, 'investments'), (s) => setInvestments(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
@@ -47,6 +54,7 @@ export default function AdminDashboard() {
       onSnapshot(collection(db, 'receipts'), (s) => setReceipts(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
       onSnapshot(collection(db, 'withdrawals'), (s) => setWithdrawals(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
       onSnapshot(collection(db, 'bankAccounts'), (s) => setBankAccounts(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, 'commissions'), (s) => setCommissions(s.docs.map((d) => ({ id: d.id, ...d.data() })))),
     ]
     return () => unsubs.forEach((u) => u())
   }, [])
@@ -75,6 +83,7 @@ export default function AdminDashboard() {
     pendingReceipts: receipts.filter((r) => r.status === 'pending').length,
     totalCapital: investments.reduce((s, i) => s + (i.amount || 0), 0),
     pendingWithdrawals: withdrawals.filter((w) => w.status === 'pending').length,
+    pendingCommissions: commissions.filter((c) => c.status === 'pending').length,
   }
 
   return (
@@ -142,11 +151,12 @@ export default function AdminDashboard() {
           {page === 'overview' && <AdminOverview stats={stats} setPage={setPage} investments={investments} users={users} />}
           {page === 'users' && <ManageUsers users={users} />}
           {page === 'plans' && <ManagePlans plans={plans} />}
-          {page === 'investments' && <ManageInvestments investments={investments} users={users} />}
+          {page === 'investments' && <ManageInvestments investments={investments} users={users} referralRate={referralRate} />}
           {page === 'receipts' && <ManageReceipts receipts={receipts} investments={investments} users={users} />}
           {page === 'withdrawals' && <ManageWithdrawals withdrawals={withdrawals} users={users} />}
           {page === 'bank' && <ManageBankAccounts bankAccounts={bankAccounts} />}
           {page === 'notifications' && <SendNotifications users={users} />}
+          {page === 'commissions' && <ManageCommissions commissions={commissions} users={users} referralRate={referralRate} onRateChange={setReferralRate} />}
           {page === 'content' && <SiteContent />}
         </div>
       </main>
@@ -409,12 +419,33 @@ function ManagePlans({ plans }) {
 }
 
 /* ── Manage Investments ── */
-function ManageInvestments({ investments, users }) {
+function ManageInvestments({ investments, users, referralRate }) {
   const { fmt } = useCurrency()
   const statuses = ['pending_payment','receipt_uploaded','under_verification','approved','rejected','active','completed','withdrawal_requested','closed']
 
   async function updateStatus(id, status) {
     await updateDoc(doc(db, 'investments', id), { status, updatedAt: serverTimestamp() })
+    if (status === 'active') {
+      const inv = investments.find((i) => i.id === id)
+      const investor = users.find((u) => u.uid === inv?.userId)
+      if (investor?.referredBy && inv) {
+        const existing = await getDocs(query(collection(db, 'commissions'), where('investmentId', '==', id)))
+        if (existing.empty) {
+          const rate = referralRate ?? 5
+          await addDoc(collection(db, 'commissions'), {
+            referrerId: investor.referredBy,
+            referredUserId: investor.uid,
+            referredUserName: investor.displayName || '',
+            investmentId: id,
+            investmentAmount: inv.amount || 0,
+            commissionRate: rate,
+            commissionAmount: (inv.amount || 0) * (rate / 100),
+            status: 'pending',
+            createdAt: serverTimestamp(),
+          })
+        }
+      }
+    }
   }
 
   async function updateReturnRate(id, rate) {
@@ -573,6 +604,119 @@ function ManageWithdrawals({ withdrawals, users }) {
                         Reject
                       </button>
                     </>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ── Manage Commissions ── */
+function ManageCommissions({ commissions, users, referralRate, onRateChange }) {
+  const { fmt } = useCurrency()
+  const [rate, setRate] = useState(String(referralRate))
+  const [saving, setSaving] = useState(false)
+
+  async function saveRate(e) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const parsed = parseFloat(rate) || 5
+      await setDoc(doc(db, 'settings', 'referral'), { commissionRate: parsed })
+      onRateChange(parsed)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function markPaid(id) {
+    await updateDoc(doc(db, 'commissions', id), { status: 'paid', paidAt: serverTimestamp() })
+  }
+
+  const totalPending = commissions.filter((c) => c.status === 'pending').reduce((s, c) => s + (c.commissionAmount || 0), 0)
+  const totalPaid = commissions.filter((c) => c.status === 'paid').reduce((s, c) => s + (c.commissionAmount || 0), 0)
+  const sorted = [...commissions].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <h2 className="text-white font-semibold text-lg">Referral Commissions</h2>
+
+      <GlassCard className="p-6">
+        <h3 className="text-white font-medium mb-4 flex items-center gap-2">
+          <Gift size={16} className="text-mea-red" />Commission Rate
+        </h3>
+        <form onSubmit={saveRate} className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="text-white/50 text-xs mb-1.5 block">Commission Rate (% of investment)</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min="0" max="100" step="0.5" value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                className="input-field w-24" />
+              <span className="text-white/40 text-sm">%</span>
+            </div>
+          </div>
+          <button type="submit" disabled={saving} className="btn-primary px-5 py-2.5 disabled:opacity-60">
+            {saving ? 'Saving...' : 'Save Rate'}
+          </button>
+        </form>
+        <p className="text-white/25 text-xs mt-3">
+          Current rate: {referralRate}% — applied automatically when a referred investor's investment is activated.
+        </p>
+      </GlassCard>
+
+      <div className="grid grid-cols-3 gap-4">
+        <GlassCard className="p-5">
+          <Gift size={18} className="text-mea-red mb-2" />
+          <div className="text-xl font-bold text-white">{commissions.length}</div>
+          <div className="text-white/40 text-xs mt-0.5">Total Commissions</div>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <div className="text-xl font-bold text-yellow-400">{fmt(totalPending)}</div>
+          <div className="text-white/40 text-xs mt-0.5">Pending Payout</div>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <div className="text-xl font-bold text-green-400">{fmt(totalPaid)}</div>
+          <div className="text-white/40 text-xs mt-0.5">Total Paid</div>
+        </GlassCard>
+      </div>
+
+      <div className="space-y-3">
+        {commissions.length === 0 ? (
+          <GlassCard className="p-12 text-center">
+            <Gift size={32} className="text-white/10 mx-auto mb-3" />
+            <p className="text-white/30">No commissions yet. Commissions are generated when a referred investor's investment is activated.</p>
+          </GlassCard>
+        ) : sorted.map((c) => {
+          const referrer = users.find((u) => u.uid === c.referrerId)
+          return (
+            <GlassCard key={c.id} className="p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-mea-red text-xs font-bold uppercase tracking-wide">Referrer</span>
+                    <span className="text-white font-medium text-sm">{referrer?.displayName || 'Unknown'}</span>
+                  </div>
+                  <div className="text-white/40 text-xs">
+                    Referred: <span className="text-white/60">{c.referredUserName || '—'}</span>
+                    &nbsp;·&nbsp;Investment: {fmt(c.investmentAmount)}
+                    &nbsp;·&nbsp;Rate: {c.commissionRate}%
+                  </div>
+                  <div className="text-white/25 text-xs mt-1">{c.createdAt?.toDate?.()?.toLocaleDateString()}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className={`text-base font-bold ${c.status === 'paid' ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {fmt(c.commissionAmount)}
+                  </div>
+                  <Badge status={c.status} />
+                  {c.status === 'pending' && (
+                    <button onClick={() => markPaid(c.id)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-green-500/15 border border-green-500/20 text-green-400 hover:bg-green-500/25 cursor-pointer transition-colors">
+                      Mark Paid
+                    </button>
                   )}
                 </div>
               </div>
