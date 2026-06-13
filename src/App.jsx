@@ -2,6 +2,7 @@ import { Component } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
+import { CurrencyProvider } from './contexts/CurrencyContext'
 import { RequireAuth, RequireAdmin, RedirectIfAuth } from './components/ui/ProtectedRoute'
 import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
@@ -56,6 +57,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <BrowserRouter>
+      <CurrencyProvider>
       <AuthProvider>
         <Toaster
           position="top-right"
@@ -96,6 +98,7 @@ export default function App() {
           } />
         </Routes>
       </AuthProvider>
+      </CurrencyProvider>
     </BrowserRouter>
     </ErrorBoundary>
   )

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ArrowRight, Clock, TrendingUp, DollarSign, Shield, Info } from 'lucide-react'
+import { Check, ArrowRight, Clock, TrendingUp, DollarSign, Info } from 'lucide-react'
 import GlassCard from '../components/ui/GlassCard'
+import { useCurrency } from '../contexts/CurrencyContext'
 
 const monthlyPlans = [
   {
@@ -78,6 +79,7 @@ const yearlyPlans = [
 export default function Plans() {
   const [tab, setTab] = useState('monthly')
   const plans = tab === 'monthly' ? monthlyPlans : yearlyPlans
+  const { fmt, currency } = useCurrency()
 
   return (
     <div className="min-h-screen bg-mea-black pt-20">
@@ -144,7 +146,7 @@ export default function Plans() {
                   <div className="space-y-3 mb-6 text-sm">
                     <div className="flex items-center gap-2 text-white/60">
                       <DollarSign size={14} className="text-mea-red flex-shrink-0" />
-                      Min: ${plan.min.toLocaleString()}{plan.max ? ` – $${plan.max.toLocaleString()}` : '+'}
+                      Min: {fmt(plan.min)}{plan.max ? ` – ${fmt(plan.max)}` : '+'}
                     </div>
                     <div className="flex items-center gap-2 text-white/60">
                       <Clock size={14} className="text-mea-red flex-shrink-0" />
