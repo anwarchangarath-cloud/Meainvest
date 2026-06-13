@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { Menu, X, TrendingUp, LogOut, User, LayoutDashboard } from 'lucide-react'
+import { useCurrency } from '../../contexts/CurrencyContext'
+import { Menu, X, TrendingUp, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react'
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const { currentUser, userProfile, logout, isAdmin } = useAuth()
+  const { currency, changeCurrency, currencies } = useCurrency()
+  const [currencyOpen, setCurrencyOpen] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -64,8 +67,37 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Desktop auth */}
+          {/* Desktop auth + currency */}
           <div className="hidden lg:flex items-center gap-3">
+            {/* Currency Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setCurrencyOpen(!currencyOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 text-xs font-semibold transition-all duration-200 cursor-pointer"
+                aria-label="Select currency"
+              >
+                {currency}
+                <ChevronDown size={12} className={`transition-transform duration-200 ${currencyOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {currencyOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-40 rounded-xl border border-white/10 bg-mea-deep/95 backdrop-blur-md shadow-xl shadow-black/50 overflow-hidden z-50">
+                  {Object.values(currencies).map((cur) => (
+                    <button
+                      key={cur.code}
+                      onClick={() => { changeCurrency(cur.code); setCurrencyOpen(false) }}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-xs transition-colors duration-150 cursor-pointer ${
+                        currency === cur.code
+                          ? 'bg-mea-red/15 text-mea-red font-semibold'
+                          : 'text-white/60 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <span>{cur.name}</span>
+                      <span className="font-bold">{cur.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {currentUser ? (
               <>
                 <Link

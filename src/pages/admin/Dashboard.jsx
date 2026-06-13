@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useCurrency } from '../../contexts/CurrencyContext'
 import {
   collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp, query, where
 } from 'firebase/firestore'
@@ -155,10 +156,11 @@ export default function AdminDashboard() {
 
 /* ── Overview ── */
 function AdminOverview({ stats, setPage, investments, users }) {
+  const { fmt } = useCurrency()
   const cards = [
     { label: 'Total Users', value: stats.totalUsers, sub: `${stats.pendingUsers} pending approval`, icon: Users, color: 'text-blue-400', page: 'users' },
     { label: 'Active Investments', value: stats.activeInvestments, sub: 'Currently running', icon: TrendingUp, color: 'text-green-400', page: 'investments' },
-    { label: 'Total Capital', value: `$${stats.totalCapital.toLocaleString()}`, sub: 'All investments', icon: DollarSign, color: 'text-mea-red', page: 'investments' },
+    { label: 'Total Capital', value: fmt(stats.totalCapital), sub: 'All investments', icon: DollarSign, color: 'text-mea-red', page: 'investments' },
     { label: 'Pending Receipts', value: stats.pendingReceipts, sub: 'Awaiting verification', icon: FileText, color: 'text-yellow-400', page: 'receipts' },
     { label: 'Pending Withdrawals', value: stats.pendingWithdrawals, sub: 'Awaiting processing', icon: Download, color: 'text-orange-400', page: 'withdrawals' },
   ]
@@ -188,7 +190,7 @@ function AdminOverview({ stats, setPage, investments, users }) {
                 <div key={inv.id} className="flex items-center justify-between p-3 rounded-xl bg-white/3">
                   <div>
                     <div className="text-white text-sm">{user?.displayName || 'Unknown'}</div>
-                    <div className="text-white/30 text-xs">{inv.planName} · ${inv.amount?.toLocaleString()}</div>
+                    <div className="text-white/30 text-xs">{inv.planName} · {fmt(inv.amount)}</div>
                   </div>
                   <Badge status={inv.status} />
                 </div>
@@ -278,6 +280,7 @@ function ManageUsers({ users }) {
 
 /* ── Manage Plans ── */
 function ManagePlans({ plans }) {
+  const { fmt } = useCurrency()
   const [showForm, setShowForm] = useState(false)
   const [editPlan, setEditPlan] = useState(null)
   const [form, setForm] = useState({ name: '', type: 'monthly', minAmount: '', returnRate: '', duration: '', active: true })
@@ -389,7 +392,7 @@ function ManagePlans({ plans }) {
               </div>
             </div>
             <div className="text-white/40 text-xs space-y-1">
-              <div>Min: ${plan.minAmount?.toLocaleString()}</div>
+              <div>Min: {fmt(plan.minAmount)}</div>
               <div>Duration: {plan.duration}</div>
             </div>
             <button onClick={() => toggleActive(plan)}
@@ -407,6 +410,7 @@ function ManagePlans({ plans }) {
 
 /* ── Manage Investments ── */
 function ManageInvestments({ investments, users }) {
+  const { fmt } = useCurrency()
   const statuses = ['pending_payment','receipt_uploaded','under_verification','approved','rejected','active','completed','withdrawal_requested','closed']
 
   async function updateStatus(id, status) {
@@ -444,14 +448,14 @@ function ManageInvestments({ investments, users }) {
                   <tr key={inv.id} className="table-row">
                     <td className="px-4 py-3 text-white text-sm">{user?.displayName || 'Unknown'}</td>
                     <td className="px-4 py-3 text-white/60 text-sm">{inv.planName}</td>
-                    <td className="px-4 py-3 text-white text-sm font-medium">${inv.amount?.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-white text-sm font-medium">{fmt(inv.amount)}</td>
                     <td className="px-4 py-3">
                       <input type="number" defaultValue={inv.returnRate} step="0.1"
                         onBlur={(e) => updateReturnRate(inv.id, e.target.value)}
                         className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:border-mea-red focus:outline-none" />
                       <span className="text-white/40 text-xs ml-1">%</span>
                     </td>
-                    <td className="px-4 py-3 text-green-400 text-sm">${(inv.projectedReturn || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-400 text-sm">{fmt(inv.projectedReturn || 0)}</td>
                     <td className="px-4 py-3"><Badge status={inv.status} /></td>
                     <td className="px-4 py-3">
                       <select value={inv.status} onChange={(e) => updateStatus(inv.id, e.target.value)}
@@ -472,6 +476,7 @@ function ManageInvestments({ investments, users }) {
 
 /* ── Manage Receipts ── */
 function ManageReceipts({ receipts, investments, users }) {
+  const { fmt } = useCurrency()
   async function approveReceipt(receipt) {
     await updateDoc(doc(db, 'receipts', receipt.id), { status: 'approved', reviewedAt: serverTimestamp() })
     await updateDoc(doc(db, 'investments', receipt.investmentId), { status: 'under_verification', updatedAt: serverTimestamp() })
@@ -494,7 +499,7 @@ function ManageReceipts({ receipts, investments, users }) {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <div className="text-white font-medium mb-1">{user?.displayName || 'Unknown'}</div>
-                  <div className="text-white/40 text-sm">{inv?.planName} · ${inv?.amount?.toLocaleString()}</div>
+                  <div className="text-white/40 text-sm">{inv?.planName} · {fmt(inv?.amount)}</div>
                   <div className="text-white/30 text-xs mt-1">Uploaded: {r.uploadedAt?.toDate?.()?.toLocaleDateString()}</div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -527,6 +532,7 @@ function ManageReceipts({ receipts, investments, users }) {
 
 /* ── Manage Withdrawals ── */
 function ManageWithdrawals({ withdrawals, users }) {
+  const { fmt } = useCurrency()
   async function processWithdrawal(id, status) {
     await updateDoc(doc(db, 'withdrawals', id), { status, processedAt: serverTimestamp() })
     if (status === 'approved') {
@@ -550,7 +556,7 @@ function ManageWithdrawals({ withdrawals, users }) {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex-1">
                   <div className="text-white font-medium">{user?.displayName || 'Unknown'}</div>
-                  <div className="text-white/40 text-sm">Amount: ${w.investmentAmount?.toLocaleString()} + Projected Return: ${w.projectedReturn?.toLocaleString()}</div>
+                  <div className="text-white/40 text-sm">Amount: {fmt(w.investmentAmount)} + Projected Return: {fmt(w.projectedReturn)}</div>
                   {w.notes && <div className="text-white/30 text-xs mt-1">Notes: {w.notes}</div>}
                   <div className="text-white/25 text-xs mt-1">{w.requestedAt?.toDate?.()?.toLocaleDateString()}</div>
                 </div>
