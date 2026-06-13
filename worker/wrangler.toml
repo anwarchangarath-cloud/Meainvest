@@ -1,0 +1,12 @@
+name = "mea-upload"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "MEA_BUCKET"
+bucket_name = "mea-receipts"
+
+[vars]
+PUBLIC_URL = "https://mea-upload.wishitworker.workers.dev/file"
+
+# UPLOAD_SECRET is set via: npx wrangler secret put UPLOAD_SECRET

@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    @apply bg-mea-black text-white font-sans antialiased;
+    margin: 0;
+    padding: 0;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100svh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-semibold;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111111; }
+  ::-webkit-scrollbar-thumb { background: #C1121F; border-radius: 3px; }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md;
+  }
+
+  .glass-card-dark {
+    @apply rounded-2xl border border-white/5 bg-black/40 backdrop-blur-md;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-white
+           bg-red-gradient cursor-pointer transition-all duration-200
+           hover:opacity-90 hover:shadow-lg hover:shadow-red-900/40
+           focus:outline-none focus:ring-2 focus:ring-mea-red focus:ring-offset-2 focus:ring-offset-mea-black
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    animation: pulseRed 2.5s ease-in-out infinite;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold
+           border border-white/20 text-white cursor-pointer transition-all duration-200
+           hover:border-mea-red hover:text-mea-red hover:bg-mea-red/5
+           focus:outline-none focus:ring-2 focus:ring-mea-red focus:ring-offset-2 focus:ring-offset-mea-black;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+           text-white/70 cursor-pointer transition-colors duration-200
+           hover:text-white hover:bg-white/5
+           focus:outline-none focus:ring-1 focus:ring-white/20;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/30
+           focus:outline-none focus:border-mea-red focus:bg-white/8 transition-colors duration-200;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .section-label {
+    @apply text-mea-red text-xs font-semibold tracking-widest uppercase;
+  }
+
+  .divider-line {
+    @apply h-px w-12 bg-mea-red mx-auto;
+  }
+
+  .nav-link {
+    @apply text-white/70 hover:text-white transition-colors duration-200 text-sm font-medium;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-white/60 hover:text-white hover:bg-white/5
+           cursor-pointer transition-all duration-200;
+  }
+
+  .sidebar-item.active {
+    @apply text-white bg-mea-red/15 border border-mea-red/30;
+  }
+
+  .table-row {
+    @apply border-b border-white/5 hover:bg-white/2 transition-colors duration-150;
+  }
+}
+
+@layer utilities {
+  .text-gradient-red {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #C1121F, #780000);
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(135deg, #C1121F, #780000) 1;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .bg-white\/8 { background-color: rgba(255,255,255,0.08); }
+  .bg-white\/2 { background-color: rgba(255,255,255,0.02); }
+}
